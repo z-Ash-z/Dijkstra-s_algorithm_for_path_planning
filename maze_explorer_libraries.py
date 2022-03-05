@@ -260,6 +260,7 @@ def node_finder (node_location, node_list):
 # Input: location
 # Output: True if in the maze
 def in_maze(location):
+
     if (location[0] >= 0) and (location[0] < maze_size[0]) and (location[1] >= 0) and (location[1] < maze_size[1]):
         return True
     else:
@@ -321,10 +322,10 @@ def current_node_updater (current_node, list):
                     index = future_locations.index(locations)
                     if (current_node.cost_to_come + locations[1]) < contents.cost_to_come:
 
-                        print('Found better cost in updater')
-                    
-                        list[index].cost_to_come = np.round(current_node.cost_to_come + locations[1], 2)
-                        list[index].parent_index = current_node.node_index
+                        if list[index].node_index != current_node.node_index:
+
+                            list[index].cost_to_come = np.round(current_node.cost_to_come + locations[1], 2)
+                            list[index].parent_index = current_node.node_index
         
         return list
 

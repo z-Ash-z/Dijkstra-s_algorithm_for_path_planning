@@ -1,9 +1,32 @@
-from inspect import currentframe
-import queue
 import cv2 as cv
 import numpy as np
-from maze_explorer_libraries import *
 import copy 
+from maze_explorer_libraries import *
+
+
+# Funtion to backtrack the path from the final node
+# Input: The visited queue
+# Output: The queue with the path
+def backtracking (visited):
+
+    path = []
+    path.append(visited[-1])
+    search_path = visited[::-1]
+    current_node = search_path.pop(0)
+
+    while search_path:
+
+        for node in search_path:
+            if current_node.parent_index == node.node_index:
+                path.append(node)
+                current_node = search_path.pop(0)
+                break
+            else:
+                search_path.pop(0)
+                break
+
+    return path[::-1]
+
 
 # Method for creating the maze
 # Input: clearance of the robot
@@ -65,7 +88,7 @@ def maze_creation (clearance = 0):
                 maze[rows, columns, 0] = 255
     
     # Checking the created maze
-    cv.imshow('maze', maze)
+    cv.imshow('Maze Explorer', maze)
     cv.waitKey(0)
 
     # Finding the points where we have the obstacles
@@ -119,33 +142,11 @@ def user_input (default_init, default_goal):
             break
     return initial_node, goal_node
 
-if __name__ == '__main__':
 
-    # Cost map for each direction in the following order [North, East, South, West, North-East, North-West, South-East, South-West]
-    cost_map = (1, 1, 1, 1, 1.4, 1.4, 1.4, 1.4)
-    
-    # Shape of the maze
-    global maze_shape
-    maze_shape = (250, 400, 3)
-    
-    # Creating the maze with clearance of 5
-    maze, obstacle_space = maze_creation(5)
-    
-    # Setting initial and goal nodes
-    # initial_node = (249, 0)
-    # goal_node = (0, 399)
-    initial_node = (0, 0)
-    goal_node = (2, 2)
-
-    # print(found_node(initial_node, obstacle_space))
-    
-    # Getting the user input
-    try:
-        initial_node, goal_node = user_input(initial_node, goal_node)
-    except:
-        print(f'There is an error in the user input!\nUsing the default nodes....\nInitial node : {initial_node} and Goal node : {goal_node}')
-
-    '''Start of Dijkstra Algorithm'''
+# Function for Dijktra's algorithm
+# Input: The initial and goal nodes
+# Output: The visited nodes list and the updated maze
+def dijkstra_algorithm(initial_node, goal_node):
     
     # Maintaining the node index
     node_index = 0
@@ -174,18 +175,11 @@ if __name__ == '__main__':
 
     # Threshold to stop infinite loops
     thresh = maze_shape[0] * maze_shape[1]
-    #print('Threshold: ', thresh)
 
     # Index for popping the visited
     index_to_pop = 0
 
     while not goal_node_reached:
-
-        # Quit if there are no child nodes
-        # if current_Node.child_nodes == 0:
-        #     print("Robot is stuck, Nowhere to go!")
-        #     goal_node_reached = True
-        #     break
 
         # For every possible action create a new node and update the queue
         for i in range(len(current_Node.possible_actions)):
@@ -219,33 +213,95 @@ if __name__ == '__main__':
                 node_index += 1
                 temp_Node.node_index = node_index
 
-                # To be removed
-                # print('\n')
-                # temp_Node.print_current_values()
-
                 # Appending to the open queue
                 open_queue.append(temp_Node)
 
-                if (temp_Node.center_location == goal_node):
-                    print("\nFound the node")
-                    print("==============\n")
-                    goal_node_reached = True
-                    break
+        if (open_queue[index_to_pop].center_location == goal_node):
+            print("\nFound the node")
+            print("==============\n")
+            goal_node_reached = True
+            visited_queue.append(open_queue.pop(index_to_pop))
+            break
         
         visited_queue.append(open_queue.pop(index_to_pop))
-        # To be deleted later
-        if goal_node_reached:
-            visited_queue.append(temp_Node)
-        # current_Node = copy.copy(open_queue[0])
+        
         current_Node, index_to_pop = min_cost_node(open_queue)
         current_Node.action_checker(node_location_extractor(visited_queue), node_location_extractor(open_queue), obstacle_space)
 
         # Handling the impossible scenarios
         thresh -= 1
         if thresh == 0:
-            break
-            # return -1
+            return -1
     
-    print("The Art:")
+    return visited_queue
+
+if __name__ == '__main__':
+
+    # Cost map for each direction in the following order [North, East, South, West, North-East, North-West, South-East, South-West]
+    cost_map = (1, 1, 1, 1, 1.4, 1.4, 1.4, 1.4)
+    
+    # Shape of the maze
+    global maze_shape
+    maze_shape = (250, 400, 3)
+    
+    # Creating the maze with clearance of 5
+    maze, obstacle_space = maze_creation(5)
+    
+    # Setting initial and goal nodes
+    initial_node = (249, 0)
+    goal_node = (0, 399)
+
+    # Setting up the video writer
+    fps = 480
+    shape = (maze_shape[1], maze_shape[0])
+    result = cv.VideoWriter('generated_path.avi', cv.VideoWriter_fourcc(*'MJPG'), fps, shape)
+    
+    # Getting the user input
+    try:
+        initial_node, goal_node = user_input(initial_node, goal_node)
+    except:
+        print(f'There is an error in the user input!\nUsing the default nodes....\nInitial node : {initial_node} and Goal node : {goal_node}')
+
+    # Dijkstra's algorithm for finding path between initial and goal node
+    visited_queue = dijkstra_algorithm(initial_node, goal_node)
+    
+    # For visualization of the explored nodes
     for every_node in visited_queue:
-        print(f'Node index is {every_node.node_index} parent is {every_node.parent_index} center is: {every_node.center_location} with cost {every_node.cost_to_come}')
+        
+        maze[every_node.center_location[0], every_node.center_location[1]] = [255, 255, 255]
+        
+        # Writing the frames to a video
+        result.write(maze)
+
+        # Show the image
+        cv.imshow('Maze Explorer', maze)
+
+        # To quit when we press q
+        if cv.waitKey(1) == ord('q'):
+            print("Saving video.......")
+            break
+
+    # Backtracking the optimal path
+    path_taken = backtracking(visited_queue)
+
+    # For visualization of the optimal path
+    for every_node in path_taken:
+        
+        maze[every_node.center_location[0], every_node.center_location[1]] = [0, 255, 0]
+        
+        # Writing the frames to a video
+        result.write(maze)
+
+        # Show the image
+        cv.imshow('Maze Explorer', maze)
+
+        # To quit when we press q
+        if cv.waitKey(1) == ord('q'):
+            print("Saving video.......")
+            break
+    
+    cv.imshow('Maze Explorer', maze)
+    cv.waitKey(0)
+
+    result.release()
+    cv.destroyAllWindows()
